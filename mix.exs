@@ -27,6 +27,6 @@ defmodule Scotty.Mixfile do
   #
   # Type "mix help deps" for more examples and options
   defp deps do
-    []
+    [{:socket, "~> 0.3.5"}]
   end
 end
