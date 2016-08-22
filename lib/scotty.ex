@@ -1,0 +1,2 @@
+defmodule Scotty do
+end
