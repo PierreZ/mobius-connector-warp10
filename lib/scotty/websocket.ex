@@ -7,45 +7,82 @@ defmodule Scotty.WebSocket do
     @doc """
     Initiates a new WebSocket GenServer (or Process)
     
-    To start it:
+    Init the websocket with Gun. It's an erlang project, 
+    but there's no good ws library in Elixir with active conn ;) 
 
-    Scotty.WebSocket.start_link("pierrezemb.ovh:8080", false, "api/v0/mobius","21 2 *", 1)
-    or 
-    Scotty.WebSocket.init("pierrezemb.ovh:8080", false, "api/v0/mobius","21 2 *", 1)
-    ?
+    To start:
     
+    {:ok, pid} = Scotty.WebSocket.start_link('pierrezemb.ovh', 8080, '/api/v0/mobius', '<% 2 3 + %> 2000 EVERY')
     """
-    def start_link(ingress, isSecure, path, warpscript, time) do
-        GenServer.start_link(__MODULE__, {ingress, isSecure, path, warpscript, time}, name: __MODULE__)
+    def start_link(ingress, port, path, warpscript) do
+        Logger.debug("start_link")
+        GenServer.start_link(__MODULE__, %{ingress: ingress, port: port, path: path, warpscript: warpscript}, name: __MODULE__)
     end
 
     @doc """
     Init is call by GenServer.start_link
     """
-    def init(ingress, isSecure, path, warpscript, time) do
-
-        schedule_ws(ingress, isSecure, path, warpscript, time)
+    def init(args) do
+        {:ok, conn}  = :gun.open(args.ingress, args.port)
+        {:ok, :http} = :gun.await_up(conn)
+        Logger.debug "upgrading http to ws"
+        :gun.ws_upgrade(conn, args.path)
+        receive do
+            {:gun_ws_upgrade, conn, :ok, _} ->
+                Logger.debug "ws is ready"
+                :gun.ws_send(conn, {:text, args.warpscript}) ## Sending warpscript
+                Logger.debug "ec2 send"
+                {:ok, conn}
+        end
     end
 
-    ## Thanks to https://stackoverflow.com/questions/32085258/how-to-run-some-code-every-few-hours-in-phoenix-framework
-    defp schedule_ws(ingress, isSecure, path, warpscript, time) do
-        Process.send_after(self(), {:start, ingress, isSecure, path, warpscript, time}, time * 60 * 1000) # In time minutes
+    ## Server callbacks
+    
+    @doc """
+    Handler for the "gun_ws_upgrade"
+    """
+    def handle_info({:gun_ws_upgrade, conn, :ok, _}, _state) do
+        Logger.debug ":gun_ws_upgrade received"
+        {:noreply, conn}
     end
-
-    ## Server Callbacks
 
     @doc """
-    This callback is actually starting the websocket connection
+    Handler for the "ws_down" event
     """
-    def handle_info({:start, ingress, isSecure, path, warpscript, time}, state) do
+    def handle_info({:gun_down, conn, _, _, _, _}, _state) do
+        Logger.debug ":gun_down received"
+        {:noreply, conn}
+    end
 
-        Logger.debug "handle_info"
+    @doc """
+    Handler for the ":shutdown" event
+    """
+    def handle_info(:shutdown, state) do
+        Logger.debug(":shutdown received")
+        {:noreply, state}        
+    end
 
-        socket = Socket.Web.connect!(ingress, secure: isSecure, path: path)
-        socket |> Socket.Web.send!({ :text, warpscript })
-        socket |> Socket.Web.recv!() |> Logger.debug 
-        
-        schedule_ws(ingress, isSecure, path, warpscript, time) # Reschedule once more
+    @doc """
+    Handler for the "gun_response" event
+    """
+    def handle_info({:gun_response, _, _, _, _, _}, state) do
+        Logger.debug("The server does not understand Websocket or refused the upgrade")
+        {:noreply, state}
+    end
+
+    @doc """
+    Handler for the "gun_error" event
+    """
+    def handle_info({:gun_error, _, _, _}, state) do
+        Logger.debug("Error using Gun")
+        {:noreply, state}
+    end
+
+    @doc """
+    Handler for the "gun_ws" event
+    """
+    def handle_info({:send, data}, state) do
+        Logger.debug(data)
         {:noreply, state}
     end
 end
