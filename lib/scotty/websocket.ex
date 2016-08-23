@@ -12,7 +12,7 @@ defmodule Scotty.WebSocket do
 
     To start:
     
-    {:ok, pid} = Scotty.WebSocket.start_link('pierrezemb.ovh', 8080, '/api/v0/mobius', '<% NOW %> 2000 EVERY')
+    {:ok, pid} = Scotty.WebSocket.start_link('pierrezemb.ovh', 8080, '/api/v0/mobius', "<% NOW %> 2000 EVERY")
     """
     def start_link(ingress, port, path, warpscript) do
         Logger.debug("start_link")
@@ -31,7 +31,6 @@ defmodule Scotty.WebSocket do
             {:gun_ws_upgrade, conn, :ok, _} ->
                 Logger.debug "ws is ready"
                 :gun.ws_send(conn, {:text, args.warpscript}) ## Sending warpscript
-                Logger.debug "ec2 send"
                 {:ok, conn}
         end
     end
@@ -41,9 +40,9 @@ defmodule Scotty.WebSocket do
     @doc """
     Handler for the "gun_ws_upgrade"
     """
-    def handle_info({:gun_ws_upgrade, conn, :ok, _}, _state) do
-        Logger.debug ":gun_ws_upgrade received"
-        {:noreply, conn}
+    def handle_info({:gun_ws, _, frame}, state) do
+        Logger.debug(elem(frame, 1))
+        {:noreply, state}
     end
 
     @doc """
