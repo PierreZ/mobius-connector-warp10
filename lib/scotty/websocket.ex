@@ -12,7 +12,7 @@ defmodule Scotty.WebSocket do
 
     To start:
     
-    {:ok, pid} = Scotty.WebSocket.start_link('pierrezemb.ovh', 8080, '/api/v0/mobius', '<% 2 3 + %> 2000 EVERY')
+    {:ok, pid} = Scotty.WebSocket.start_link('pierrezemb.ovh', 8080, '/api/v0/mobius', '<% NOW %> 2000 EVERY')
     """
     def start_link(ingress, port, path, warpscript) do
         Logger.debug("start_link")
