@@ -14,9 +14,9 @@ defmodule Scotty.WebSocket do
     
     {:ok, pid} = Scotty.WebSocket.start_link('pierrezemb.ovh', 8080, '/api/v0/mobius', "<% NOW %> 2000 EVERY")
     """
-    def start_link(ingress, port, path, warpscript) do
-        Logger.debug("start_link")
-        GenServer.start_link(__MODULE__, %{ingress: ingress, port: port, path: path, warpscript: warpscript}, name: __MODULE__)
+    def start_link(args, opts) do
+        Logger.debug("Starting a WS")
+        GenServer.start_link(__MODULE__, args, opts)
     end
 
     @doc """
@@ -38,50 +38,36 @@ defmodule Scotty.WebSocket do
     ## Server callbacks
     
     @doc """
-    Handler for the "gun_ws_upgrade"
+    Response from Mobius
+    http://ninenines.eu/docs/en/gun/1.0/guide/websocket/
     """
     def handle_info({:gun_ws, _, frame}, state) do
         Logger.debug(elem(frame, 1))
+        ## Todo: forward frame to a Queue
         {:noreply, state}
-    end
-
-    @doc """
-    Handler for the "ws_down" event
-    """
-    def handle_info({:gun_down, conn, _, _, _, _}, _state) do
-        Logger.debug ":gun_down received"
-        {:noreply, conn}
-    end
-
-    @doc """
-    Handler for the ":shutdown" event
-    """
-    def handle_info(:shutdown, state) do
-        Logger.debug(":shutdown received")
-        {:noreply, state}        
     end
 
     @doc """
     Handler for the "gun_response" event
     """
-    def handle_info({:gun_response, _, _, _, _, _}, state) do
-        Logger.debug("The server does not understand Websocket or refused the upgrade")
-        {:noreply, state}
+    def handle_info({:gun_response, _, _, _, status, _}, state) do
+        Logger.error("The server does not understand Websocket or refused the upgrade")
+        {:stop, status, state}
+    end
+
+    @doc """
+    Handler for the "gun_down" event
+    """
+    def handle_info({:gun_down, _, _, reason, _, _}, state) do
+        Logger.error("Error using Gun")
+        {:stop, reason, state}
     end
 
     @doc """
     Handler for the "gun_error" event
     """
-    def handle_info({:gun_error, _, _, _}, state) do
-        Logger.debug("Error using Gun")
-        {:noreply, state}
-    end
-
-    @doc """
-    Handler for the "gun_ws" event
-    """
-    def handle_info({:send, data}, state) do
-        Logger.debug(data)
-        {:noreply, state}
+    def handle_info({:gun_error, _, _, reason}, state) do
+        Logger.error("Error using Gun")
+        {:stop, reason, state}
     end
 end
